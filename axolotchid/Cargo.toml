@@ -1,0 +1,23 @@
+[package]
+name = "axolotchid"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "axolotchid"
+path = "src/main.rs"
+
+[dependencies]
+axolotchi-core = { path = "../crates/axolotchi-core" }
+axolotchi-net = { path = "../crates/axolotchi-net" }
+axolotchi-store = { path = "../crates/axolotchi-store" }
+axolotchi-slack = { path = "../crates/axolotchi-slack" }
+axolotchi-sprites = { path = "../crates/axolotchi-sprites" }
+tokio = { version = "1.53.1", features = ["rt", "macros", "sync", "signal"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls"] }
+serde = { version = "1.0.229", features = ["derive"] }
+toml = "1.1.6"
