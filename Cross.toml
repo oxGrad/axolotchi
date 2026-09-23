@@ -1,0 +1,5 @@
+[target.arm-unknown-linux-gnueabihf]
+image = "ghcr.io/cross-rs/arm-unknown-linux-gnueabihf:main"
+
+[build.env]
+passthrough = ["AXOLOTCHI_*"]

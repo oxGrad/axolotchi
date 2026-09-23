@@ -1,0 +1,22 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/axolotchi-core",
+    "crates/axolotchi-net",
+    "crates/axolotchi-store",
+    "crates/axolotchi-slack",
+    "crates/axolotchi-sprites",
+    "axolotchid",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[profile.release]
+opt-level = "s"
+lto = true
+panic = "abort"
+strip = true
