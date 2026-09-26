@@ -1,0 +1,30 @@
+---
+source: crates/axolotchi-slack/src/blocks/forget_confirm_modal.rs
+expression: forget_confirm_modal(&vm)
+---
+{
+  "blocks": [
+    {
+      "text": {
+        "text": "Axo will forget *Kitchen Pi* completely. This can't be undone.",
+        "type": "mrkdwn"
+      },
+      "type": "section"
+    }
+  ],
+  "callback_id": "forget_device_confirm",
+  "close": {
+    "text": "Cancel",
+    "type": "plain_text"
+  },
+  "private_metadata": "aa:bb:cc:dd:ee:01",
+  "submit": {
+    "text": "Forget",
+    "type": "plain_text"
+  },
+  "title": {
+    "text": "Forget device?",
+    "type": "plain_text"
+  },
+  "type": "modal"
+}

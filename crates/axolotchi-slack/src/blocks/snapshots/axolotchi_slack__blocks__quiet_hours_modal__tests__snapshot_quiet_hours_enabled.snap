@@ -1,0 +1,79 @@
+---
+source: crates/axolotchi-slack/src/blocks/quiet_hours_modal.rs
+expression: quiet_hours_modal(&vm)
+---
+{
+  "blocks": [
+    {
+      "block_id": "quiet_hours_enabled_block",
+      "element": {
+        "action_id": "quiet_hours_enabled",
+        "initial_options": [
+          {
+            "text": {
+              "text": "Enable quiet hours",
+              "type": "plain_text"
+            },
+            "value": "enabled"
+          }
+        ],
+        "options": [
+          {
+            "text": {
+              "text": "Enable quiet hours",
+              "type": "plain_text"
+            },
+            "value": "enabled"
+          }
+        ],
+        "type": "checkboxes"
+      },
+      "label": {
+        "text": "Enabled",
+        "type": "plain_text"
+      },
+      "optional": true,
+      "type": "input"
+    },
+    {
+      "block_id": "quiet_hours_start_block",
+      "element": {
+        "action_id": "quiet_hours_start",
+        "initial_time": "22:00",
+        "type": "timepicker"
+      },
+      "label": {
+        "text": "Starts at",
+        "type": "plain_text"
+      },
+      "type": "input"
+    },
+    {
+      "block_id": "quiet_hours_end_block",
+      "element": {
+        "action_id": "quiet_hours_end",
+        "initial_time": "07:00",
+        "type": "timepicker"
+      },
+      "label": {
+        "text": "Ends at",
+        "type": "plain_text"
+      },
+      "type": "input"
+    }
+  ],
+  "callback_id": "quiet_hours",
+  "close": {
+    "text": "Cancel",
+    "type": "plain_text"
+  },
+  "submit": {
+    "text": "Save",
+    "type": "plain_text"
+  },
+  "title": {
+    "text": "Quiet Hours",
+    "type": "plain_text"
+  },
+  "type": "modal"
+}

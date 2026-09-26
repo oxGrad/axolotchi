@@ -1,0 +1,37 @@
+---
+source: crates/axolotchi-slack/src/blocks/edit_modal.rs
+expression: edit_modal(&vm)
+---
+{
+  "blocks": [
+    {
+      "block_id": "label_block",
+      "element": {
+        "action_id": "label_input",
+        "initial_value": "Kitchen Pi",
+        "max_length": 80,
+        "type": "plain_text_input"
+      },
+      "label": {
+        "text": "Nickname",
+        "type": "plain_text"
+      },
+      "type": "input"
+    }
+  ],
+  "callback_id": "edit_device",
+  "close": {
+    "text": "Cancel",
+    "type": "plain_text"
+  },
+  "private_metadata": "aa:bb:cc:dd:ee:01",
+  "submit": {
+    "text": "Save",
+    "type": "plain_text"
+  },
+  "title": {
+    "text": "Rename device",
+    "type": "plain_text"
+  },
+  "type": "modal"
+}

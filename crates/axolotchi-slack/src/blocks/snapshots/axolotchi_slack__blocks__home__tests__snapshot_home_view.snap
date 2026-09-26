@@ -1,0 +1,110 @@
+---
+source: crates/axolotchi-slack/src/blocks/home.rs
+expression: home_view(&sample())
+---
+{
+  "blocks": [
+    {
+      "text": {
+        "text": "Axo the Axolotl",
+        "type": "plain_text"
+      },
+      "type": "header"
+    },
+    {
+      "alt_text": "Curious",
+      "slack_file": {
+        "id": "F0123CURIOUS"
+      },
+      "type": "image"
+    },
+    {
+      "text": {
+        "text": "*Stage:* Hatchling\n*XP:* 10",
+        "type": "mrkdwn"
+      },
+      "type": "section"
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "accessory": {
+        "action_id": "device_overflow",
+        "options": [
+          {
+            "text": {
+              "text": "Details",
+              "type": "plain_text"
+            },
+            "value": "details:aa:bb:cc:dd:ee:01"
+          },
+          {
+            "text": {
+              "text": "Rename",
+              "type": "plain_text"
+            },
+            "value": "rename:aa:bb:cc:dd:ee:01"
+          },
+          {
+            "text": {
+              "text": "Forget",
+              "type": "plain_text"
+            },
+            "value": "forget:aa:bb:cc:dd:ee:01"
+          }
+        ],
+        "type": "overflow"
+      },
+      "text": {
+        "text": "*Kitchen Pi*\n🟢 present\n_A tiny, tireless workhorse._",
+        "type": "mrkdwn"
+      },
+      "type": "section"
+    },
+    {
+      "accessory": {
+        "action_id": "device_overflow",
+        "options": [
+          {
+            "text": {
+              "text": "Details",
+              "type": "plain_text"
+            },
+            "value": "details:aa:bb:cc:dd:ee:02"
+          },
+          {
+            "text": {
+              "text": "Rename",
+              "type": "plain_text"
+            },
+            "value": "rename:aa:bb:cc:dd:ee:02"
+          },
+          {
+            "text": {
+              "text": "Forget",
+              "type": "plain_text"
+            },
+            "value": "forget:aa:bb:cc:dd:ee:02"
+          }
+        ],
+        "type": "overflow"
+      },
+      "text": {
+        "text": "*Unknown Wanderer*\n🟡 missed a check-in",
+        "type": "mrkdwn"
+      },
+      "type": "section"
+    },
+    {
+      "elements": [
+        {
+          "text": "🏆 1/4 achievements unlocked",
+          "type": "mrkdwn"
+        }
+      ],
+      "type": "context"
+    }
+  ],
+  "type": "home"
+}
