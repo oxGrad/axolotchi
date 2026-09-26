@@ -1,20 +1,19 @@
-//! SQLite storage: migrations, repo functions, OUI loader, and the ring
-//! buffer that keeps raw sightings out of SQLite entirely.
+//! SQLite storage: migrations, repo functions, OUI loader, the `kv` table,
+//! and the ring buffer that keeps raw sightings out of SQLite entirely.
 //!
 //! `open()` runs pending migrations before handing back the connection, so
-//! every caller gets a ready-to-use schema. Wiring this crate into
-//! `axolotchid`'s hydrate/persist/ring-buffer flow lands in milestone 4,
-//! once `axolotchi-net` actually produces sightings to hydrate from,
-//! persist, and buffer.
+//! every caller gets a ready-to-use schema.
 
 mod devices;
 mod error;
+mod kv;
 mod migrations;
 mod oui;
 mod ring;
 
-pub use devices::{load_devices, upsert_device};
+pub use devices::{delete_device, load_devices, upsert_device};
 pub use error::{Result, StoreError};
+pub use kv::{kv_delete, kv_get, kv_set};
 pub use oui::{import_oui, lookup_vendor, SEED_OUI_CSV};
 pub use ring::{RawSighting, RingBuffer};
 pub use rusqlite::Connection;

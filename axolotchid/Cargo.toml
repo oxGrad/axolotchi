@@ -24,3 +24,6 @@ toml = "1.1.6"
 
 [features]
 hardware = ["axolotchi-net/hardware"]
+
+[dev-dependencies]
+serde_json = "1.0.151"

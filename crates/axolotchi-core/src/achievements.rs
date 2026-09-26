@@ -39,6 +39,12 @@ impl Achievement {
     }
 }
 
+/// Total number of achievements in the rule table, for rendering "3/4
+/// unlocked" style progress without the caller hardcoding the count.
+pub fn count() -> usize {
+    ALL.len()
+}
+
 const NETWORK_DETECTIVE_THRESHOLD: usize = 10;
 const NIGHT_WATCH_STREAK: u32 = 5;
 

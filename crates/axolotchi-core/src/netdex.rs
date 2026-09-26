@@ -47,6 +47,13 @@ pub fn lookup(vendor: Option<&str>) -> DexEntry {
         .unwrap_or(UNKNOWN)
 }
 
+/// Every entry in the dex, for rendering the full catalog (e.g. the Netdex
+/// modal) alongside `State::discovered_vendors` to know which are still
+/// silhouettes.
+pub fn entries() -> &'static [DexEntry] {
+    ENTRIES
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

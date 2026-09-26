@@ -7,21 +7,26 @@ Only scan networks you own or have permission to monitor.
 
 ## Status
 
-Milestones 1-6 plus a minimal slice of milestone 7: `axolotchid` connects to
-Slack over Socket Mode and answers a `/axo` slash command, tracks device
-presence (`Present -> Missed(n) -> Gone`) and persists it to SQLite, watches
-the network via either a scripted mock source (the default, so the whole
-pipeline runs on a laptop) or a real ARP sweep plus passive `AF_PACKET`
-sniffer behind the `hardware` feature, and reacts to all of it with mood, XP
-and evolution stages, an achievements rule table, and Netdex flavor text for
-known device vendors. Mood/XP/achievement state lives in memory only for
-now; persisting it to SQLite is a follow-up. The Block Kit views (Home,
-alerts, device card, rename/forget/Netdex/quiet-hours modals) are built and
-snapshot tested, but not wired up yet: Socket Mode interaction routing and
-the `views.publish` render debouncer are milestone 7, so today the only
-thing you'll actually see in Slack is still the plain-text slash command
-reply. See `CLAUDE.md` for the full milestone
-plan.
+Milestones 1-6 plus most of milestone 7: `axolotchid` connects to Slack over
+Socket Mode, tracks device presence (`Present -> Missed(n) -> Gone`) and
+persists it to SQLite, watches the network via either a scripted mock source
+(the default, so the whole pipeline runs on a laptop) or a real ARP sweep
+plus passive `AF_PACKET` sniffer behind the `hardware` feature, and reacts to
+all of it with mood, XP and evolution stages, an achievements rule table, and
+Netdex flavor text for known device vendors.
+
+`/axo who|feed|stats` reply with real text, and `/axo dex` opens the Netdex
+modal. The Home tab's device overflow menu (Details/Rename/Forget) opens the
+matching modal via `views.open`, the device card's own buttons push a
+follow-up modal via `views.push`, and submitting a modal saves the nickname
+or quiet hours setting to `kv` or deletes the device (Forget). Nicknames and
+quiet hours live in the `kv` table; mood/XP/achievement/Netdex-discovery
+state is still in-memory only.
+
+Not done yet: nothing actually publishes the Home tab itself (there's no
+`views.publish` call anywhere, so the overflow menu has nothing to click on
+in practice today), reactions-as-input, and the pinned "live tank" message
+with its render debouncer. See `CLAUDE.md` for the full milestone plan.
 
 ## Running locally
 

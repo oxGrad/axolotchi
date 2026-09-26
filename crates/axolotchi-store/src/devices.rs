@@ -65,6 +65,13 @@ pub fn upsert_device(conn: &Connection, device: &Device) -> Result<()> {
     Ok(())
 }
 
+/// Removes a device entirely — for the "Forget" action, which the Slack
+/// rules say Axo should treat as permanent.
+pub fn delete_device(conn: &Connection, device_id: &str) -> Result<()> {
+    conn.execute("DELETE FROM devices WHERE id = ?1", params![device_id])?;
+    Ok(())
+}
+
 /// Rebuilds the full device table into a map keyed by device id, for
 /// hydrating `axolotchi_core::State` on startup.
 pub fn load_devices(conn: &Connection) -> Result<HashMap<DeviceId, Device>> {
@@ -151,6 +158,27 @@ mod tests {
         let loaded = &loaded["dev-1"];
         assert_eq!(loaded.presence, Presence::Gone);
         assert_eq!(loaded.ip.as_deref(), Some("10.0.0.9"));
+    }
+
+    #[test]
+    fn delete_device_removes_it() {
+        let conn = db();
+        let device = Device::hydrate(
+            "dev-1".into(),
+            None,
+            Presence::Present,
+            0,
+            SightingSource::Active,
+        );
+        upsert_device(&conn, &device).unwrap();
+        delete_device(&conn, "dev-1").unwrap();
+        assert!(load_devices(&conn).unwrap().is_empty());
+    }
+
+    #[test]
+    fn delete_device_on_unknown_id_is_a_no_op() {
+        let conn = db();
+        delete_device(&conn, "does-not-exist").unwrap();
     }
 
     #[test]

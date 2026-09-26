@@ -6,6 +6,12 @@
 //! in `CLAUDE.md`: never block the ack on SQLite or anything else.
 
 pub mod blocks;
+mod interactions;
 mod socket_mode;
 
-pub use socket_mode::{parse_command, respond, run, Config, SlackError, SlashCommandInvocation};
+pub use interactions::{
+    checkbox_checked, input_value, timepicker_hour, BlockAction, Interaction, ViewSubmission,
+};
+pub use socket_mode::{
+    parse_command, respond, run, views_open, views_push, Config, SlackError, SlashCommandInvocation,
+};

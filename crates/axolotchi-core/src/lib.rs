@@ -11,7 +11,7 @@ mod netdex;
 mod presence;
 mod xp;
 
-pub use achievements::Achievement;
+pub use achievements::{count as achievement_count, Achievement};
 pub use mood::{Mood, MoodState};
 pub use netdex::DexEntry;
 pub use presence::{Device, Presence, PresenceLimits, SightingSource};
@@ -73,6 +73,11 @@ pub enum Effect {
 /// `netdex::lookup`, exposed here since `netdex` itself is private.
 pub fn dex_entry(vendor: Option<&str>) -> DexEntry {
     netdex::lookup(vendor)
+}
+
+/// Every entry in the Netdex, for rendering the full catalog.
+pub fn dex_entries() -> &'static [DexEntry] {
+    netdex::entries()
 }
 
 /// Advance the game state by one event, returning the new state plus any
@@ -288,5 +293,16 @@ mod tests {
     fn dex_entry_looks_up_flavor_text() {
         assert_eq!(dex_entry(Some("Espressif Inc.")).vendor, "Espressif Inc.");
         assert_eq!(dex_entry(None).vendor, "Unknown Wanderer");
+    }
+
+    #[test]
+    fn dex_entries_lists_the_full_catalog() {
+        assert!(!dex_entries().is_empty());
+        assert!(dex_entries().iter().any(|e| e.vendor == "Espressif Inc."));
+    }
+
+    #[test]
+    fn achievement_count_matches_the_rule_table() {
+        assert_eq!(achievement_count(), 4);
     }
 }
