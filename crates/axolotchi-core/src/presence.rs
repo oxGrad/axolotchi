@@ -36,6 +36,30 @@ pub struct Device {
     sighted_this_sweep: bool,
 }
 
+impl Device {
+    /// Rebuilds a device from persisted state (e.g. on daemon startup).
+    /// `sighted_this_sweep` always starts `false`: after a restart we don't
+    /// yet know whether the device has already been seen in the sweep that
+    /// happens to be in progress, so the next `SweepComplete` treats it like
+    /// any other device that hasn't reported in yet this cycle.
+    pub fn hydrate(
+        id: DeviceId,
+        ip: Option<String>,
+        presence: Presence,
+        last_seen: Timestamp,
+        last_source: SightingSource,
+    ) -> Self {
+        Self {
+            id,
+            ip,
+            presence,
+            last_seen,
+            last_source,
+            sighted_this_sweep: false,
+        }
+    }
+}
+
 /// How many consecutive missed sweeps a device tolerates before it's
 /// considered `Gone`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -157,6 +181,26 @@ mod tests {
         for _ in 0..n {
             on_sweep_complete(devices, limits);
         }
+    }
+
+    #[test]
+    fn hydrated_device_treats_the_in_progress_sweep_as_unseen() {
+        let mut devices = HashMap::new();
+        devices.insert(
+            "dev-1".to_string(),
+            Device::hydrate(
+                "dev-1".into(),
+                Some("10.0.0.5".into()),
+                Presence::Present,
+                0,
+                SightingSource::Active,
+            ),
+        );
+        let limits = PresenceLimits { miss_limit: 3 };
+        // Nothing has re-sighted it since hydration, so the next sweep
+        // counts as a miss rather than a free pass.
+        on_sweep_complete(&mut devices, limits);
+        assert_eq!(devices["dev-1"].presence, Presence::Missed(1));
     }
 
     #[test]

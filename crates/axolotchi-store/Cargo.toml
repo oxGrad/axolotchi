@@ -6,4 +6,6 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+axolotchi-core = { version = "0.1.0", path = "../axolotchi-core" }
 rusqlite = { version = "0.32", features = ["bundled"] }
+thiserror = "2.0.21"
