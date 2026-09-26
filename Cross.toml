@@ -2,4 +2,18 @@
 image = "ghcr.io/cross-rs/arm-unknown-linux-gnueabihf:main"
 
 [build.env]
-passthrough = ["AXOLOTCHI_*"]
+# cross validates every passthrough entry as a literal env var name (or
+# NAME=value pair) - it doesn't support glob patterns like "AXOLOTCHI_*",
+# so each one actually used by axolotchid needs to be listed.
+passthrough = [
+    "AXOLOTCHI_SLACK_BOT_TOKEN",
+    "AXOLOTCHI_SLACK_APP_TOKEN",
+    "AXOLOTCHI_PET_NAME",
+    "AXOLOTCHI_DATABASE_PATH",
+    "AXOLOTCHI_NET_MODE",
+    "AXOLOTCHI_HOME_CHANNEL",
+    "AXOLOTCHI_INTERFACE",
+    "AXOLOTCHI_OUR_IP",
+    "AXOLOTCHI_SWEEP_NETWORK",
+    "AXOLOTCHI_SWEEP_PREFIX",
+]
