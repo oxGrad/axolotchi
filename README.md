@@ -28,19 +28,32 @@ quiet hours live in the `kv` table; mood/XP/achievement/Netdex-discovery
 state, and the set of users who've opened Home, are still in-memory only —
 lost on restart, rebuilt as things happen again.
 
-Not done yet: reactions-as-input, and the pinned "live tank" channel message
-(a standing message kept current via `chat.update`, independent of anyone
-opening their Home tab). See `CLAUDE.md` for the full milestone plan.
+With `AXOLOTCHI_HOME_CHANNEL` set, `axolotchid` also posts and pins a "live
+tank" message in that channel (`chat.postMessage` + `pins.add`, once — its
+channel/ts are saved in `kv` so a restart resumes updating the same message
+instead of posting a new one), refreshed by the same debounced tick as the
+Home tab via `chat.update`. Reacting to it with `:fish:` feeds Axo, the same
+as `/axo feed` (this is "reactions as input" from the milestone plan) —
+matched purely by comparing the reaction's channel/ts against the live
+tank's, so reacting anywhere else does nothing. If posting it fails (no
+`AXOLOTCHI_HOME_CHANNEL`, a bad channel, missing scopes), `axolotchid` logs
+it and carries on without that feature; only the Home tab is required to
+work. See `CLAUDE.md` for the full milestone plan — as of this milestone,
+Slack's UI for axolotchi is essentially complete: what's left in the plan is
+mostly the game layer's own persistence and the Ops milestone (systemd,
+graceful shutdown, nightly prune).
 
 ## Running locally
 
-1. Create a Slack app with Socket Mode enabled, a bot token (`xoxb-...`),
-   an app-level token with `connections:write` (`xapp-...`), and a
-   `/axo` slash command. Also enable the **Home Tab** under App Home, and
-   subscribe to the `app_home_opened` bot event under Event Subscriptions
-   (Socket Mode delivers it, no request URL needed) — without that
-   subscription, `axolotchid` never learns a Home tab was opened and so
-   never publishes it.
+1. Create a Slack app with Socket Mode enabled, a bot token (`xoxb-...`)
+   with the `chat:write`, `pins:write`, and `reactions:read` scopes, an
+   app-level token with `connections:write` (`xapp-...`), and a `/axo`
+   slash command. Also enable the **Home Tab** under App Home, and
+   subscribe to the `app_home_opened` and `reaction_added` bot events
+   under Event Subscriptions (Socket Mode delivers both, no request URL
+   needed) — without those subscriptions, `axolotchid` never learns a Home
+   tab was opened or a reaction was added, so it can't publish or react to
+   either.
 2. Provide the tokens via environment variables (or `/etc/axolotchi/config.toml`,
    see below):
 
@@ -51,7 +64,9 @@ opening their Home tab). See `CLAUDE.md` for the full milestone plan.
    ```
 
 3. In Slack, open the app's Home tab to see Axo's mood, stage, XP, and known
-   devices, or run `/axo who`, `feed`, `stats`, or `dex`.
+   devices, or run `/axo who`, `feed`, `stats`, or `dex`. Set
+   `AXOLOTCHI_HOME_CHANNEL` (see below) to also get a pinned, live-updating
+   message in a channel — invite the bot to that channel first.
 
 ### Config file
 
@@ -63,11 +78,12 @@ slack_app_token = "xapp-..."
 pet_name = "Axo"
 database_path = "/var/lib/axolotchi/axolotchi.db"
 net_mode = "mock" # or "hardware"
+home_channel = "C0123456789" # optional: enables the pinned live tank message
 ```
 
 Any `AXOLOTCHI_*` environment variable overrides the matching config file
 value (`AXOLOTCHI_SLACK_BOT_TOKEN`, `AXOLOTCHI_DATABASE_PATH`,
-`AXOLOTCHI_NET_MODE`, ...).
+`AXOLOTCHI_NET_MODE`, `AXOLOTCHI_HOME_CHANNEL`, ...).
 
 ### Network modes
 

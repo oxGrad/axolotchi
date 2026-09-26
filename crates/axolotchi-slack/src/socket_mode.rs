@@ -9,6 +9,9 @@ const CONNECTIONS_OPEN_URL: &str = "https://slack.com/api/apps.connections.open"
 const VIEWS_OPEN_URL: &str = "https://slack.com/api/views.open";
 const VIEWS_PUSH_URL: &str = "https://slack.com/api/views.push";
 const VIEWS_PUBLISH_URL: &str = "https://slack.com/api/views.publish";
+const CHAT_POST_MESSAGE_URL: &str = "https://slack.com/api/chat.postMessage";
+const CHAT_UPDATE_URL: &str = "https://slack.com/api/chat.update";
+const PINS_ADD_URL: &str = "https://slack.com/api/pins.add";
 const RECONNECT_DELAY: Duration = Duration::from_secs(1);
 
 #[derive(Debug, Clone)]
@@ -295,6 +298,104 @@ pub async fn views_publish(
         .json()
         .await?;
     if response.ok {
+        Ok(())
+    } else {
+        Err(SlackError::Api(
+            response.error.unwrap_or_else(|| "unknown error".into()),
+        ))
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct ChatMessageResponse {
+    ok: bool,
+    error: Option<String>,
+    channel: Option<String>,
+    ts: Option<String>,
+}
+
+/// Posts a new message — used once, to create the pinned "live tank"
+/// message. `message` is a full `{"text": ..., "blocks": [...]}` payload
+/// (e.g. from `blocks::live_tank_message`); `channel` is merged in here.
+/// Returns the `(channel, ts)` Slack assigned it, needed for every later
+/// `chat_update`/`pins_add` call.
+pub async fn chat_post_message(
+    client: &reqwest::Client,
+    bot_token: &str,
+    channel: &str,
+    mut message: serde_json::Value,
+) -> Result<(String, String), SlackError> {
+    message["channel"] = serde_json::Value::String(channel.to_string());
+    let response: ChatMessageResponse = client
+        .post(CHAT_POST_MESSAGE_URL)
+        .bearer_auth(bot_token)
+        .json(&message)
+        .send()
+        .await?
+        .json()
+        .await?;
+    if !response.ok {
+        return Err(SlackError::Api(
+            response.error.unwrap_or_else(|| "unknown error".into()),
+        ));
+    }
+    let channel = response
+        .channel
+        .ok_or_else(|| SlackError::Api("chat.postMessage: missing channel".into()))?;
+    let ts = response
+        .ts
+        .ok_or_else(|| SlackError::Api("chat.postMessage: missing ts".into()))?;
+    Ok((channel, ts))
+}
+
+/// Updates an existing message in place — how the pinned live-tank message
+/// stays current without ever being reposted (and so never needing to be
+/// re-pinned). Same payload shape as `chat_post_message`.
+pub async fn chat_update(
+    client: &reqwest::Client,
+    bot_token: &str,
+    channel: &str,
+    ts: &str,
+    mut message: serde_json::Value,
+) -> Result<(), SlackError> {
+    message["channel"] = serde_json::Value::String(channel.to_string());
+    message["ts"] = serde_json::Value::String(ts.to_string());
+    let response: ApiResponse = client
+        .post(CHAT_UPDATE_URL)
+        .bearer_auth(bot_token)
+        .json(&message)
+        .send()
+        .await?
+        .json()
+        .await?;
+    if response.ok {
+        Ok(())
+    } else {
+        Err(SlackError::Api(
+            response.error.unwrap_or_else(|| "unknown error".into()),
+        ))
+    }
+}
+
+/// Pins a message. Called once, right after the live-tank message is first
+/// posted; `already_pinned` (e.g. after a restart that re-posts nothing but
+/// still tries to pin) is treated as success rather than an error.
+pub async fn pins_add(
+    client: &reqwest::Client,
+    bot_token: &str,
+    channel: &str,
+    ts: &str,
+) -> Result<(), SlackError> {
+    let body = serde_json::json!({ "channel": channel, "timestamp": ts });
+    let response: ApiResponse = client
+        .post(PINS_ADD_URL)
+        .bearer_auth(bot_token)
+        .json(&body)
+        .send()
+        .await?
+        .json()
+        .await?;
+    if response.ok || response.error.as_deref() == Some("already_pinned") {
         Ok(())
     } else {
         Err(SlackError::Api(

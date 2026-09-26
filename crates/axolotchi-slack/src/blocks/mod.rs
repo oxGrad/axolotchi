@@ -9,6 +9,7 @@ mod edit_modal;
 mod forget_confirm_modal;
 mod home;
 mod limits;
+mod live_tank;
 mod netdex_modal;
 mod quiet_hours_modal;
 mod view_models;
@@ -18,6 +19,7 @@ pub use device_card::device_card_modal;
 pub use edit_modal::edit_modal;
 pub use forget_confirm_modal::forget_confirm_modal;
 pub use home::home_view;
+pub use live_tank::live_tank_message;
 pub use netdex_modal::netdex_modal;
 pub use quiet_hours_modal::quiet_hours_modal;
 pub use view_models::{

@@ -42,7 +42,10 @@ fn device_block(device: &DeviceSummary) -> Value {
     })
 }
 
-pub fn home_view(vm: &HomeViewModel) -> Value {
+/// The mood/stage/XP/device blocks shared by the Home tab and the pinned
+/// live-tank message — the two views show the same content, just wrapped
+/// differently (`{"type":"home",...}` vs. a plain message payload).
+pub(super) fn body_blocks(vm: &HomeViewModel) -> Vec<Value> {
     let mut blocks = vec![json!({
         "type": "header",
         "text": { "type": "plain_text", "text": truncate(&format!("{} the Axolotl", vm.pet_name), MAX_HEADER_CHARS) },
@@ -92,7 +95,11 @@ pub fn home_view(vm: &HomeViewModel) -> Value {
         "elements": cap_context_elements(footer_elements),
     }));
 
-    json!({ "type": "home", "blocks": blocks })
+    blocks
+}
+
+pub fn home_view(vm: &HomeViewModel) -> Value {
+    json!({ "type": "home", "blocks": body_blocks(vm) })
 }
 
 #[cfg(test)]

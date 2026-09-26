@@ -28,6 +28,15 @@ pub struct ViewSubmission {
     pub values: Value,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Reaction {
+    pub user_id: String,
+    /// The emoji name, e.g. `"fish"` for `:fish:`, with no colons.
+    pub emoji: String,
+    pub channel: String,
+    pub ts: String,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Interaction {
     BlockAction(BlockAction),
@@ -38,6 +47,10 @@ pub enum Interaction {
     HomeOpened {
         user_id: String,
     },
+    /// Someone reacted to a message — the caller decides whether it was the
+    /// live-tank message and which emoji means what. Requires the Slack app
+    /// to subscribe to the `reaction_added` event.
+    Reaction(Reaction),
 }
 
 fn str_field(value: &Value, key: &str) -> Option<String> {
@@ -82,19 +95,31 @@ pub fn parse_interaction(payload: &Value) -> Option<Interaction> {
 }
 
 /// Parses an `events_api` envelope's `payload` object, recognizing
-/// `app_home_opened` (for the Home tab) and ignoring every other event type
-/// (there's nothing else subscribed to yet).
+/// `app_home_opened` (for the Home tab) and `reaction_added` (for the
+/// pinned live-tank message) and ignoring every other event type.
 pub fn parse_event(payload: &Value) -> Option<Interaction> {
     if payload.get("type")?.as_str()? != "event_callback" {
         return None;
     }
     let event = payload.get("event")?;
-    if event.get("type")?.as_str()? != "app_home_opened" {
-        return None;
+    match event.get("type")?.as_str()? {
+        "app_home_opened" => Some(Interaction::HomeOpened {
+            user_id: str_field(event, "user")?,
+        }),
+        "reaction_added" => {
+            let item = event.get("item")?;
+            if item.get("type")?.as_str()? != "message" {
+                return None;
+            }
+            Some(Interaction::Reaction(Reaction {
+                user_id: str_field(event, "user")?,
+                emoji: str_field(event, "reaction")?,
+                channel: str_field(item, "channel")?,
+                ts: str_field(item, "ts")?,
+            }))
+        }
+        _ => None,
     }
-    Some(Interaction::HomeOpened {
-        user_id: str_field(event, "user")?,
-    })
 }
 
 /// Pulls a single `plain_text_input`/similar element's `value` out of a
@@ -262,6 +287,42 @@ mod tests {
     #[test]
     fn ignores_non_event_callback_payloads() {
         let payload = json!({ "type": "url_verification" });
+        assert_eq!(parse_event(&payload), None);
+    }
+
+    #[test]
+    fn parses_reaction_added_on_a_message() {
+        let payload = json!({
+            "type": "event_callback",
+            "event": {
+                "type": "reaction_added",
+                "user": "U1",
+                "reaction": "fish",
+                "item": { "type": "message", "channel": "C1", "ts": "123.456" },
+            },
+        });
+        assert_eq!(
+            parse_event(&payload),
+            Some(Interaction::Reaction(Reaction {
+                user_id: "U1".into(),
+                emoji: "fish".into(),
+                channel: "C1".into(),
+                ts: "123.456".into(),
+            }))
+        );
+    }
+
+    #[test]
+    fn ignores_reaction_added_on_a_file() {
+        let payload = json!({
+            "type": "event_callback",
+            "event": {
+                "type": "reaction_added",
+                "user": "U1",
+                "reaction": "fish",
+                "item": { "type": "file", "file": "F1" },
+            },
+        });
         assert_eq!(parse_event(&payload), None);
     }
 

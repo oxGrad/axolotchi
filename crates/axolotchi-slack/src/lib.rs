@@ -10,9 +10,10 @@ mod interactions;
 mod socket_mode;
 
 pub use interactions::{
-    checkbox_checked, input_value, timepicker_hour, BlockAction, Interaction, ViewSubmission,
+    checkbox_checked, input_value, timepicker_hour, BlockAction, Interaction, Reaction,
+    ViewSubmission,
 };
 pub use socket_mode::{
-    parse_command, respond, run, views_open, views_publish, views_push, Config, SlackError,
-    SlashCommandInvocation,
+    chat_post_message, chat_update, parse_command, pins_add, respond, run, views_open,
+    views_publish, views_push, Config, SlackError, SlashCommandInvocation,
 };

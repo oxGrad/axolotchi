@@ -22,10 +22,18 @@ use std::collections::HashSet;
 use std::net::Ipv4Addr;
 use std::time::Duration;
 
-/// How often a pending `Render` effect gets flushed to everyone's Home tab.
-/// Coalesces bursts of Render effects into at most one publish per user in
-/// this window, per the Slack rules in `CLAUDE.md`.
+/// How often a pending `Render` effect gets flushed to everyone's Home tab
+/// (and the live-tank message, if configured). Coalesces bursts of Render
+/// effects into at most one publish per window, per the Slack rules in
+/// `CLAUDE.md`.
 const RENDER_DEBOUNCE: Duration = Duration::from_secs(3);
+
+/// Reacting with this emoji on the live-tank message feeds Axo — the
+/// "reactions as input" mechanism from milestone 7's plan.
+const FEED_EMOJI: &str = "fish";
+
+const KV_LIVE_TANK_CHANNEL: &str = "live_tank_channel";
+const KV_LIVE_TANK_TS: &str = "live_tank_ts";
 
 const CONFIG_PATH: &str = "/etc/axolotchi/config.toml";
 
@@ -50,6 +58,10 @@ struct Config {
     pet_name: String,
     database_path: String,
     net_mode: NetMode,
+    /// Channel to post the pinned "live tank" message in. Optional: with
+    /// none set, that feature is simply off — only the Home tab (via
+    /// app_home_opened) shows live state.
+    home_channel: Option<String>,
     // Only read by spawn_hardware_net_source, which is cfg'd out entirely
     // without the `hardware` feature.
     #[cfg_attr(not(feature = "hardware"), allow(dead_code))]
@@ -69,6 +81,7 @@ struct FileConfig {
     pet_name: Option<String>,
     database_path: Option<String>,
     net_mode: Option<String>,
+    home_channel: Option<String>,
     interface: Option<String>,
     our_ip: Option<String>,
     sweep_network: Option<String>,
@@ -121,6 +134,7 @@ fn load_config() -> Result<Config, String> {
         }
     };
 
+    let home_channel = string_opt("AXOLOTCHI_HOME_CHANNEL", file_config.home_channel);
     let interface = string_opt("AXOLOTCHI_INTERFACE", file_config.interface);
     let our_ip = parse_ipv4_opt("AXOLOTCHI_OUR_IP", file_config.our_ip)?;
     let sweep_network = parse_ipv4_opt("AXOLOTCHI_SWEEP_NETWORK", file_config.sweep_network)?;
@@ -152,6 +166,7 @@ fn load_config() -> Result<Config, String> {
         pet_name,
         database_path,
         net_mode,
+        home_channel,
         interface,
         our_ip,
         sweep_network,
@@ -321,6 +336,77 @@ async fn publish_home_for(
     {
         tracing::warn!(%error, %user_id, "failed to publish home tab");
     }
+}
+
+/// Refreshes the pinned live-tank message in place via `chat.update`.
+async fn refresh_live_tank(
+    client: &reqwest::Client,
+    config: &Config,
+    state: &State,
+    db: &Connection,
+    channel: &str,
+    ts: &str,
+) {
+    let message =
+        axolotchi_slack::blocks::live_tank_message(&home_view_vm(state, db, &config.pet_name));
+    if let Err(error) =
+        axolotchi_slack::chat_update(client, &config.slack_bot_token, channel, ts, message).await
+    {
+        tracing::warn!(%error, %channel, %ts, "failed to update live tank message");
+    }
+}
+
+/// Sets up the pinned live-tank message: resumes the one already posted
+/// (its channel/ts saved in `kv`) if `config.home_channel` still matches,
+/// otherwise posts and pins a fresh one. Returns `None` if the feature
+/// isn't configured, or posting it fails (a network hiccup at startup
+/// shouldn't crash the whole daemon — the Home tab still works).
+async fn setup_live_tank(
+    client: &reqwest::Client,
+    config: &Config,
+    state: &State,
+    db: &Connection,
+) -> Option<(String, String)> {
+    let channel = config.home_channel.as_ref()?;
+
+    let saved_channel = axolotchi_store::kv_get(db, KV_LIVE_TANK_CHANNEL)
+        .ok()
+        .flatten();
+    let saved_ts = axolotchi_store::kv_get(db, KV_LIVE_TANK_TS).ok().flatten();
+    if let (Some(saved_channel), Some(saved_ts)) = (saved_channel, saved_ts) {
+        if &saved_channel == channel {
+            tracing::info!(channel = %saved_channel, ts = %saved_ts, "resuming existing live tank message");
+            return Some((saved_channel, saved_ts));
+        }
+    }
+
+    let message =
+        axolotchi_slack::blocks::live_tank_message(&home_view_vm(state, db, &config.pet_name));
+    let (posted_channel, posted_ts) = match axolotchi_slack::chat_post_message(
+        client,
+        &config.slack_bot_token,
+        channel,
+        message,
+    )
+    .await
+    {
+        Ok(result) => result,
+        Err(error) => {
+            tracing::error!(%error, %channel, "failed to post live tank message, continuing without it");
+            return None;
+        }
+    };
+
+    if let Err(error) =
+        axolotchi_slack::pins_add(client, &config.slack_bot_token, &posted_channel, &posted_ts)
+            .await
+    {
+        tracing::warn!(%error, "failed to pin live tank message");
+    }
+    let _ = axolotchi_store::kv_set(db, KV_LIVE_TANK_CHANNEL, &posted_channel);
+    let _ = axolotchi_store::kv_set(db, KV_LIVE_TANK_TS, &posted_ts);
+    tracing::info!(channel = %posted_channel, ts = %posted_ts, "posted and pinned live tank message");
+    Some((posted_channel, posted_ts))
 }
 
 fn effects_want_render(effects: &[Effect]) -> bool {
@@ -566,6 +652,9 @@ async fn run(config: Config) {
     let mut recent_sightings: axolotchi_store::RingBuffer<axolotchi_store::RawSighting> =
         axolotchi_store::RingBuffer::new(256);
 
+    let client = reqwest::Client::new();
+    let live_tank = setup_live_tank(&client, &config, &state, &db).await;
+
     let (slash_tx, mut slash_rx) = tokio::sync::mpsc::channel(32);
     let (interaction_tx, mut interaction_rx) = tokio::sync::mpsc::channel(32);
     let slack_config = axolotchi_slack::Config {
@@ -581,7 +670,6 @@ async fn run(config: Config) {
     let (net_tx, mut net_rx) = tokio::sync::mpsc::channel(64);
     spawn_net_source(&config, net_tx);
 
-    let client = reqwest::Client::new();
     // Users who've opened the Home tab at least once — that's who the
     // debounced re-render republishes for. In-memory only: lost on
     // restart, rebuilt as each user reopens Home.
@@ -672,13 +760,31 @@ async fn run(config: Config) {
                         known_home_users.insert(user_id.clone());
                         publish_home_for(&client, &config, &state, &db, &user_id).await;
                     }
+                    Interaction::Reaction(reaction) => {
+                        let is_feed_on_live_tank = reaction.emoji == FEED_EMOJI
+                            && live_tank.as_ref().is_some_and(|(channel, ts)| {
+                                *channel == reaction.channel && *ts == reaction.ts
+                            });
+                        if is_feed_on_live_tank {
+                            let (next_state, effects) = axolotchi_core::step(
+                                state,
+                                Event::SlashCommand { command: SlashCommand::Feed, at: unix_now() },
+                            );
+                            state = next_state;
+                            render_pending |= effects_want_render(&effects);
+                            persist_effects(&db, &state, &effects);
+                        }
+                    }
                 }
             }
             _ = render_tick.tick() => {
-                if render_pending && !known_home_users.is_empty() {
+                if render_pending {
                     render_pending = false;
                     for user_id in known_home_users.clone() {
                         publish_home_for(&client, &config, &state, &db, &user_id).await;
+                    }
+                    if let Some((channel, ts)) = &live_tank {
+                        refresh_live_tank(&client, &config, &state, &db, channel, ts).await;
                     }
                 }
             }
@@ -702,6 +808,7 @@ mod tests {
             pet_name: "Axo".into(),
             database_path: ":memory:".into(),
             net_mode: NetMode::Mock,
+            home_channel: None,
             interface: None,
             our_ip: None,
             sweep_network: None,
@@ -913,5 +1020,30 @@ mod tests {
                 .as_deref(),
             Some("7")
         );
+    }
+
+    #[tokio::test]
+    async fn setup_live_tank_is_none_when_not_configured() {
+        let db = test_db();
+        let config = test_config(); // home_channel: None
+        let client = reqwest::Client::new();
+        assert_eq!(
+            setup_live_tank(&client, &config, &State::default(), &db).await,
+            None
+        );
+    }
+
+    #[tokio::test]
+    async fn setup_live_tank_resumes_existing_message_from_kv() {
+        let db = test_db();
+        let config = Config {
+            home_channel: Some("C1".into()),
+            ..test_config()
+        };
+        axolotchi_store::kv_set(&db, KV_LIVE_TANK_CHANNEL, "C1").unwrap();
+        axolotchi_store::kv_set(&db, KV_LIVE_TANK_TS, "123.456").unwrap();
+        let client = reqwest::Client::new();
+        let result = setup_live_tank(&client, &config, &State::default(), &db).await;
+        assert_eq!(result, Some(("C1".to_string(), "123.456".to_string())));
     }
 }
