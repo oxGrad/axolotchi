@@ -7,6 +7,7 @@
 mod devices;
 mod error;
 mod kv;
+mod maintenance;
 mod migrations;
 mod oui;
 mod ring;
@@ -14,6 +15,7 @@ mod ring;
 pub use devices::{delete_device, load_devices, upsert_device};
 pub use error::{Result, StoreError};
 pub use kv::{kv_delete, kv_get, kv_set};
+pub use maintenance::{checkpoint, prune_gone_devices, vacuum};
 pub use oui::{import_oui, lookup_vendor, SEED_OUI_CSV};
 pub use ring::{RawSighting, RingBuffer};
 pub use rusqlite::Connection;

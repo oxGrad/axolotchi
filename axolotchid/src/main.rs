@@ -11,7 +11,7 @@
 //!
 //! Single-threaded tokio runtime, per the Pi Zero W's single core.
 
-use axolotchi_core::{Effect, Event, Presence, SlashCommand, State};
+use axolotchi_core::{Effect, Event, Mood, Presence, SlashCommand, State};
 use axolotchi_slack::blocks::{
     DeviceCardViewModel, DeviceSummary, EditModalViewModel, ForgetConfirmViewModel, HomeViewModel,
     NetdexEntryView, NetdexModalViewModel,
@@ -34,6 +34,20 @@ const FEED_EMOJI: &str = "fish";
 
 const KV_LIVE_TANK_CHANNEL: &str = "live_tank_channel";
 const KV_LIVE_TANK_TS: &str = "live_tank_ts";
+
+/// How often the nightly housekeeping tick fires. It's a fixed interval
+/// rather than "at midnight" — simpler, and the exact hour doesn't matter
+/// for a job this cheap.
+const MAINTENANCE_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
+/// Devices `Gone` for longer than this get pruned from SQLite.
+const PRUNE_GONE_AFTER_SECS: i64 = 30 * 24 * 60 * 60;
+
+/// How often the scanner heartbeat is checked.
+const HEARTBEAT_CHECK_INTERVAL: Duration = Duration::from_secs(60);
+/// How long the net source can go quiet before it's considered stalled.
+/// Generous relative to both the mock source's short demo script and
+/// hardware mode's sweep interval, so normal quiet periods never trip it.
+const HEARTBEAT_TIMEOUT_SECS: i64 = 5 * 60;
 
 const CONFIG_PATH: &str = "/etc/axolotchi/config.toml";
 
@@ -676,11 +690,22 @@ async fn run(config: Config) {
     let mut known_home_users: HashSet<String> = HashSet::new();
     let mut render_pending = false;
     let mut render_tick = tokio::time::interval(RENDER_DEBOUNCE);
+    let mut maintenance_tick = tokio::time::interval(MAINTENANCE_INTERVAL);
+    let mut heartbeat_tick = tokio::time::interval(HEARTBEAT_CHECK_INTERVAL);
+    let mut last_net_event_at = unix_now();
+    let mut scanner_stalled = false;
+    let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+        .expect("failed to install SIGTERM handler");
     tracing::info!(pet_name = %config.pet_name, "axolotchid started");
 
     loop {
         tokio::select! {
             Some(event) = net_rx.recv() => {
+                last_net_event_at = unix_now();
+                if scanner_stalled {
+                    scanner_stalled = false;
+                    tracing::info!("scanner heartbeat recovered");
+                }
                 // Net never resolves a vendor itself; look it up here from
                 // the OUI table so axolotchi-core (which can't touch SQLite)
                 // still gets a resolved name for Netdex tracking.
@@ -788,12 +813,50 @@ async fn run(config: Config) {
                     }
                 }
             }
+            _ = maintenance_tick.tick() => {
+                let now = unix_now();
+                match axolotchi_store::prune_gone_devices(&db, now, PRUNE_GONE_AFTER_SECS) {
+                    Ok(0) => {}
+                    Ok(deleted) => {
+                        tracing::info!(deleted, "pruned long-gone devices");
+                        if let Err(error) = axolotchi_store::vacuum(&db) {
+                            tracing::warn!(%error, "failed to vacuum database after pruning");
+                        }
+                    }
+                    Err(error) => tracing::warn!(%error, "failed to prune gone devices"),
+                }
+            }
+            _ = heartbeat_tick.tick() => {
+                let now = unix_now();
+                if now - last_net_event_at > HEARTBEAT_TIMEOUT_SECS && !scanner_stalled {
+                    scanner_stalled = true;
+                    tracing::error!(
+                        seconds_quiet = now - last_net_event_at,
+                        "scanner heartbeat missed, network watcher appears stalled"
+                    );
+                    state.mood.mood = Mood::Sleepy;
+                    render_pending = true;
+                }
+            }
+            _ = sigterm.recv() => {
+                tracing::info!("received SIGTERM, shutting down gracefully");
+                break;
+            }
+            _ = tokio::signal::ctrl_c() => {
+                tracing::info!("received Ctrl+C, shutting down gracefully");
+                break;
+            }
             else => {
                 tracing::error!("all slack and net channels closed, shutting down");
                 break;
             }
         }
     }
+
+    if let Err(error) = axolotchi_store::checkpoint(&db) {
+        tracing::warn!(%error, "failed to checkpoint WAL on shutdown");
+    }
+    tracing::info!("axolotchid stopped");
 }
 
 #[cfg(test)]

@@ -7,7 +7,7 @@ Only scan networks you own or have permission to monitor.
 
 ## Status
 
-Milestones 1-6 plus most of milestone 7: `axolotchid` connects to Slack over
+All 8 milestones from `CLAUDE.md` are done. `axolotchid` connects to Slack over
 Socket Mode, tracks device presence (`Present -> Missed(n) -> Gone`) and
 persists it to SQLite, watches the network via either a scripted mock source
 (the default, so the whole pipeline runs on a laptop) or a real ARP sweep
@@ -38,10 +38,19 @@ matched purely by comparing the reaction's channel/ts against the live
 tank's, so reacting anywhere else does nothing. If posting it fails (no
 `AXOLOTCHI_HOME_CHANNEL`, a bad channel, missing scopes), `axolotchid` logs
 it and carries on without that feature; only the Home tab is required to
-work. See `CLAUDE.md` for the full milestone plan — as of this milestone,
-Slack's UI for axolotchi is essentially complete: what's left in the plan is
-mostly the game layer's own persistence and the Ops milestone (systemd,
-graceful shutdown, nightly prune).
+work.
+
+On the ops side, `axolotchid` shuts down cleanly on `SIGTERM` or Ctrl+C
+(checkpointing the SQLite WAL before exit), prunes devices that have been
+`Gone` for more than 30 days once a day (followed by a `VACUUM` if anything
+was deleted), and tracks a scanner heartbeat: if the network source goes
+quiet for more than 5 minutes, Axo is forced to `Sleepy` and an error is
+logged, with a recovery log line once events resume. See
+[Deploying to the Pi](#deploying-to-the-pi) below for the systemd unit that
+drives restart-on-failure and boot startup. Mood/XP/achievement/Netdex
+progress and the set of users who've opened Home are still in-memory only —
+lost across a restart, rebuilt as things happen again; nicknames, quiet
+hours, and device presence persist to SQLite.
 
 ## Running locally
 
@@ -113,3 +122,52 @@ cross build --release --target arm-unknown-linux-gnueabihf -p axolotchid
 # with real network scanning:
 cross build --release --target arm-unknown-linux-gnueabihf -p axolotchid --features hardware
 ```
+
+## Deploying to the Pi
+
+`axolotchid` runs as a systemd service (`packaging/axolotchid.service`) so it
+restarts on crash and starts on boot without a login session. The daemon
+process itself is never root: the unit runs it as an unprivileged
+`axolotchi` system user, and hardware net mode's raw sockets are granted via
+`AmbientCapabilities=CAP_NET_RAW` instead. A plain user-level (`--user`)
+unit was considered instead, since it needs no `sudo` at all to run — but
+without `loginctl enable-linger` (which the Pi shouldn't need just to run
+this), it stops the moment nobody's logged in, which defeats "survives a
+reboot". A system-level unit only needs root once, for installation.
+
+1. Cross-compile the release binary (see above; add `--features hardware`
+   for real scanning).
+2. Copy the repo (or just `target/.../release/axolotchid` and the
+   `packaging/` directory) onto the Pi.
+3. Run the installer once, as root:
+
+   ```sh
+   sudo ./packaging/install.sh
+   ```
+
+   This creates the `axolotchi` system user, `/etc/axolotchi` and
+   `/var/lib/axolotchi` (owned by that user), copies the binary to
+   `/usr/local/bin/axolotchid`, writes `/etc/axolotchi/config.toml` from
+   `packaging/config.toml.example` if one doesn't already exist, installs
+   the unit file, and runs `systemctl enable --now axolotchid`.
+4. Edit `/etc/axolotchi/config.toml` to add the real Slack tokens (and, for
+   hardware mode, the interface/IP/sweep settings — see
+   [Network modes](#network-modes) above), then
+   `sudo systemctl restart axolotchid`.
+
+Day to day:
+
+```sh
+sudo systemctl status axolotchid    # is it running, last few log lines
+journalctl -u axolotchid -f         # follow logs live
+sudo systemctl restart axolotchid   # after editing config.toml
+```
+
+A `SIGTERM` (what `systemctl stop`/`restart` sends) is handled gracefully:
+`axolotchid` breaks its engine loop, checkpoints the SQLite WAL, and exits
+0. A crash or non-zero exit gets restarted automatically after 5 seconds
+(`Restart=on-failure`, capped at 5 restarts per 5 minutes so a persistently
+broken build doesn't spin forever). To upgrade, re-run `install.sh` with the
+new binary — it overwrites `/usr/local/bin/axolotchid` and the unit file but
+leaves the existing config and database alone — then
+`sudo systemctl restart axolotchid`.

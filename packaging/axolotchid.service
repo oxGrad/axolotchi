@@ -1,0 +1,40 @@
+[Unit]
+Description=axolotchi - Tamagotchi-style LAN guardian
+Documentation=https://github.com/oxgrad/axolotchi
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/axolotchid
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=10
+KillSignal=SIGTERM
+
+# Runs unprivileged. Hardware net mode needs raw sockets, granted via an
+# ambient capability instead of running as root.
+User=axolotchi
+Group=axolotchi
+AmbientCapabilities=CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_RAW
+
+# Config (including Slack tokens, at /etc/axolotchi/config.toml) and the
+# database live outside the unit file, owned by the axolotchi user.
+
+# Hardening.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/axolotchi
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target
