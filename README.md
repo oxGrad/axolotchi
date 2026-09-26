@@ -7,14 +7,18 @@ Only scan networks you own or have permission to monitor.
 
 ## Status
 
-Milestones 1-4 plus a minimal slice of milestone 7: `axolotchid` connects to
+Milestones 1-5 plus a minimal slice of milestone 7: `axolotchid` connects to
 Slack over Socket Mode and answers a `/axo` slash command, tracks device
-presence (`Present -> Missed(n) -> Gone`) and persists it to SQLite, and
-watches the network via either a scripted mock source (the default, so the
-whole pipeline runs on a laptop) or a real ARP sweep + passive `AF_PACKET`
-sniffer behind the `hardware` feature. The game layer (mood, XP, evolution)
-and the Block Kit UI are still stubs — see `CLAUDE.md` for the full
-milestone plan.
+presence (`Present -> Missed(n) -> Gone`) and persists it to SQLite, watches
+the network via either a scripted mock source (the default, so the whole
+pipeline runs on a laptop) or a real ARP sweep plus passive `AF_PACKET`
+sniffer behind the `hardware` feature, and reacts to all of it with mood, XP
+and evolution stages, an achievements rule table, and Netdex flavor text for
+known device vendors. Mood/XP/achievement state lives in memory only for
+now; persisting it to SQLite is a follow-up. The Block Kit UI is still a
+stub, since there is no view of any of this yet beyond log lines and the
+plain-text slash command reply. See `CLAUDE.md` for the full milestone
+plan.
 
 ## Running locally
 

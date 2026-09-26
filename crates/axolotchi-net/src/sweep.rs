@@ -130,6 +130,7 @@ pub async fn run_sweep_cycle<T: Transport>(
             device_id: device_id.clone(),
             ip: Some(ip.to_string()),
             source: SightingSource::Active,
+            vendor: None,
             at: now(),
         };
         if tx.send(event).await.is_err() {
@@ -240,6 +241,7 @@ mod tests {
                 ip,
                 source,
                 at,
+                ..
             } => {
                 assert_eq!(device_id, format_mac(&device_mac));
                 assert_eq!(ip.as_deref(), Some("192.168.1.2"));

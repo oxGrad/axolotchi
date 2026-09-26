@@ -13,6 +13,14 @@ use std::net::Ipv4Addr;
 
 const CONFIG_PATH: &str = "/etc/axolotchi/config.toml";
 
+fn unix_now() -> i64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum NetMode {
     Mock,
@@ -162,12 +170,22 @@ fn main() {
 /// in-memory device it names back to SQLite.
 fn persist_effects(db: &Connection, state: &State, effects: &[Effect]) {
     for effect in effects {
-        if let Effect::Persist { device_id } = effect {
-            if let Some(device) = state.devices.get(device_id) {
-                if let Err(error) = axolotchi_store::upsert_device(db, device) {
-                    tracing::warn!(%error, %device_id, "failed to persist device");
+        match effect {
+            Effect::Persist { device_id } => {
+                if let Some(device) = state.devices.get(device_id) {
+                    if let Err(error) = axolotchi_store::upsert_device(db, device) {
+                        tracing::warn!(%error, %device_id, "failed to persist device");
+                    }
                 }
             }
+            // Mood, XP, achievements and Netdex progress aren't persisted
+            // to SQLite yet (a follow-up once the store schema grows to
+            // cover them) — logging keeps them visible in the meantime.
+            Effect::Morph { stage } => tracing::info!(?stage, "axo morphed"),
+            Effect::AchievementUnlocked(achievement) => {
+                tracing::info!(name = achievement.name(), "achievement unlocked")
+            }
+            Effect::Render => {}
         }
     }
 }
@@ -266,14 +284,23 @@ async fn run(config: Config) {
     loop {
         tokio::select! {
             Some(event) = net_rx.recv() => {
-                if let Event::Sighting { device_id, ip, source, at } = &event {
-                    recent_sightings.push(axolotchi_store::RawSighting {
-                        device_id: device_id.clone(),
-                        ip: ip.clone(),
-                        source: *source,
-                        at: *at,
-                    });
-                }
+                // Net never resolves a vendor itself; look it up here from
+                // the OUI table so axolotchi-core (which can't touch SQLite)
+                // still gets a resolved name for Netdex tracking.
+                let event = match event {
+                    Event::Sighting { device_id, ip, source, at, .. } => {
+                        let vendor = axolotchi_store::lookup_vendor(&db, &device_id)
+                            .unwrap_or(None);
+                        recent_sightings.push(axolotchi_store::RawSighting {
+                            device_id: device_id.clone(),
+                            ip: ip.clone(),
+                            source,
+                            at,
+                        });
+                        Event::Sighting { device_id, ip, source, vendor, at }
+                    }
+                    other => other,
+                };
                 let (next_state, effects) = axolotchi_core::step(state, event);
                 state = next_state;
                 persist_effects(&db, &state, &effects);
@@ -282,7 +309,7 @@ async fn run(config: Config) {
                 let text = match axolotchi_slack::parse_command(&invocation.text) {
                     Some(command) => {
                         let (next_state, effects) =
-                            axolotchi_core::step(state, Event::SlashCommand { command });
+                            axolotchi_core::step(state, Event::SlashCommand { command, at: unix_now() });
                         state = next_state;
                         persist_effects(&db, &state, &effects);
                         format!(

@@ -47,6 +47,10 @@ pub async fn run_mock_source(script: Vec<ScriptedEvent>, tx: mpsc::Sender<Event>
                 device_id,
                 ip,
                 source,
+                // Net never resolves a vendor itself, mock included;
+                // axolotchid enriches this centrally via the OUI table
+                // before handing the event to axolotchi-core.
+                vendor: None,
                 at: unix_now(),
             },
             ScriptedAction::SweepComplete => Event::SweepComplete { at: unix_now() },

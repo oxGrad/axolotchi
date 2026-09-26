@@ -34,6 +34,7 @@ fn passive_sighting_from_frame(bytes: &[u8], our_mac: MacAddr, at: i64) -> Optio
         device_id: format_mac(&frame.src),
         ip,
         source: SightingSource::Passive,
+        vendor: None,
         at,
     })
 }
@@ -101,6 +102,7 @@ mod tests {
                 ip,
                 source,
                 at,
+                ..
             } => {
                 assert_eq!(device_id, format_mac(&DEVICE_MAC));
                 assert_eq!(ip.as_deref(), Some("10.0.0.5"));
