@@ -8,6 +8,7 @@ use tokio_tungstenite::tungstenite::Message;
 const CONNECTIONS_OPEN_URL: &str = "https://slack.com/api/apps.connections.open";
 const VIEWS_OPEN_URL: &str = "https://slack.com/api/views.open";
 const VIEWS_PUSH_URL: &str = "https://slack.com/api/views.push";
+const VIEWS_PUBLISH_URL: &str = "https://slack.com/api/views.publish";
 const RECONNECT_DELAY: Duration = Duration::from_secs(1);
 
 #[derive(Debug, Clone)]
@@ -154,6 +155,15 @@ where
                 }
             }
         }
+        "events_api" => {
+            if let Some(payload) = envelope.get("payload") {
+                if let Some(interaction) = interactions::parse_event(payload) {
+                    if interaction_tx.send(interaction).await.is_err() {
+                        tracing::warn!("engine channel closed, dropping event");
+                    }
+                }
+            }
+        }
         _ => {}
     }
 
@@ -263,6 +273,34 @@ pub async fn views_push(
     view: serde_json::Value,
 ) -> Result<(), SlackError> {
     call_views_api(client, VIEWS_PUSH_URL, bot_token, trigger_id, view).await
+}
+
+/// Publishes a user's Home tab. Unlike `views_open`/`views_push`, this
+/// targets a `user_id` rather than a one-shot `trigger_id`, so it can be
+/// called any time — on `app_home_opened`, or from the debounced re-render
+/// after a `Render` effect.
+pub async fn views_publish(
+    client: &reqwest::Client,
+    bot_token: &str,
+    user_id: &str,
+    view: serde_json::Value,
+) -> Result<(), SlackError> {
+    let body = serde_json::json!({ "user_id": user_id, "view": view });
+    let response: ApiResponse = client
+        .post(VIEWS_PUBLISH_URL)
+        .bearer_auth(bot_token)
+        .json(&body)
+        .send()
+        .await?
+        .json()
+        .await?;
+    if response.ok {
+        Ok(())
+    } else {
+        Err(SlackError::Api(
+            response.error.unwrap_or_else(|| "unknown error".into()),
+        ))
+    }
 }
 
 /// Maps a raw `/axo <subcommand>` text argument onto the core command enum.

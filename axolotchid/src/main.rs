@@ -13,12 +13,19 @@
 
 use axolotchi_core::{Effect, Event, Presence, SlashCommand, State};
 use axolotchi_slack::blocks::{
-    DeviceCardViewModel, EditModalViewModel, ForgetConfirmViewModel, NetdexEntryView,
-    NetdexModalViewModel,
+    DeviceCardViewModel, DeviceSummary, EditModalViewModel, ForgetConfirmViewModel, HomeViewModel,
+    NetdexEntryView, NetdexModalViewModel,
 };
 use axolotchi_slack::{BlockAction, Interaction, ViewSubmission};
 use axolotchi_store::Connection;
+use std::collections::HashSet;
 use std::net::Ipv4Addr;
+use std::time::Duration;
+
+/// How often a pending `Render` effect gets flushed to everyone's Home tab.
+/// Coalesces bursts of Render effects into at most one publish per user in
+/// this window, per the Slack rules in `CLAUDE.md`.
+const RENDER_DEBOUNCE: Duration = Duration::from_secs(3);
 
 const CONFIG_PATH: &str = "/etc/axolotchi/config.toml";
 
@@ -264,6 +271,62 @@ fn netdex_modal_vm(state: &State) -> NetdexModalViewModel {
         })
         .collect();
     NetdexModalViewModel { entries }
+}
+
+fn home_view_vm(state: &State, db: &Connection, pet_name: &str) -> HomeViewModel {
+    let mut devices: Vec<DeviceSummary> = state
+        .devices
+        .values()
+        .map(|device| {
+            let vendor = axolotchi_store::lookup_vendor(db, &device.id)
+                .ok()
+                .flatten();
+            let dex = axolotchi_core::dex_entry(vendor.as_deref());
+            DeviceSummary {
+                id: device.id.clone(),
+                label: device_label(db, &device.id),
+                presence: device.presence,
+                vendor_flavor: Some(dex.flavor.to_string()),
+            }
+        })
+        .collect();
+    devices.sort_by(|a, b| a.label.cmp(&b.label));
+
+    HomeViewModel {
+        pet_name: pet_name.to_string(),
+        mood: state.mood.mood,
+        // Sprite upload-once + kv lookup lands in milestone 8; until then
+        // the Home view falls back to a text-only mood line.
+        mood_sprite_file_id: None,
+        stage: state.xp.stage,
+        xp: state.xp.xp,
+        devices,
+        achievements_unlocked: state.achievements.len(),
+        achievements_total: axolotchi_core::achievement_count(),
+    }
+}
+
+/// Publishes the Home tab for one user: on `app_home_opened`, and from the
+/// debounced re-render after a `Render` effect.
+async fn publish_home_for(
+    client: &reqwest::Client,
+    config: &Config,
+    state: &State,
+    db: &Connection,
+    user_id: &str,
+) {
+    let view = axolotchi_slack::blocks::home_view(&home_view_vm(state, db, &config.pet_name));
+    if let Err(error) =
+        axolotchi_slack::views_publish(client, &config.slack_bot_token, user_id, view).await
+    {
+        tracing::warn!(%error, %user_id, "failed to publish home tab");
+    }
+}
+
+fn effects_want_render(effects: &[Effect]) -> bool {
+    effects
+        .iter()
+        .any(|effect| matches!(effect, Effect::Render))
 }
 
 fn who_reply(state: &State, db: &Connection) -> String {
@@ -519,6 +582,12 @@ async fn run(config: Config) {
     spawn_net_source(&config, net_tx);
 
     let client = reqwest::Client::new();
+    // Users who've opened the Home tab at least once — that's who the
+    // debounced re-render republishes for. In-memory only: lost on
+    // restart, rebuilt as each user reopens Home.
+    let mut known_home_users: HashSet<String> = HashSet::new();
+    let mut render_pending = false;
+    let mut render_tick = tokio::time::interval(RENDER_DEBOUNCE);
     tracing::info!(pet_name = %config.pet_name, "axolotchid started");
 
     loop {
@@ -543,6 +612,7 @@ async fn run(config: Config) {
                 };
                 let (next_state, effects) = axolotchi_core::step(state, event);
                 state = next_state;
+                render_pending |= effects_want_render(&effects);
                 persist_effects(&db, &state, &effects);
             }
             Some(invocation) = slash_rx.recv() => {
@@ -552,6 +622,7 @@ async fn run(config: Config) {
                         let (next_state, effects) =
                             axolotchi_core::step(state, Event::SlashCommand { command, at: unix_now() });
                         state = next_state;
+                        render_pending |= effects_want_render(&effects);
                         persist_effects(&db, &state, &effects);
 
                         match command {
@@ -596,6 +667,18 @@ async fn run(config: Config) {
                     }
                     Interaction::ViewSubmission(submission) => {
                         handle_view_submission(&db, &mut state, submission);
+                    }
+                    Interaction::HomeOpened { user_id } => {
+                        known_home_users.insert(user_id.clone());
+                        publish_home_for(&client, &config, &state, &db, &user_id).await;
+                    }
+                }
+            }
+            _ = render_tick.tick() => {
+                if render_pending && !known_home_users.is_empty() {
+                    render_pending = false;
+                    for user_id in known_home_users.clone() {
+                        publish_home_for(&client, &config, &state, &db, &user_id).await;
                     }
                 }
             }
@@ -709,6 +792,28 @@ mod tests {
     fn device_card_vm_is_none_for_unknown_device() {
         let db = test_db();
         assert!(device_card_vm(&State::default(), &db, "does-not-exist", 0).is_none());
+    }
+
+    #[test]
+    fn effects_want_render_detects_render_effect() {
+        assert!(effects_want_render(&[Effect::Render]));
+        assert!(!effects_want_render(&[Effect::Persist {
+            device_id: "dev-1".into()
+        }]));
+        assert!(!effects_want_render(&[]));
+    }
+
+    #[test]
+    fn home_view_vm_reflects_state() {
+        let db = test_db();
+        axolotchi_store::kv_set(&db, "nickname:aa:bb:cc", "Kitchen Pi").unwrap();
+        let state = state_with_device("aa:bb:cc", Presence::Present);
+        let vm = home_view_vm(&state, &db, "Axo");
+        assert_eq!(vm.pet_name, "Axo");
+        assert_eq!(vm.devices.len(), 1);
+        assert_eq!(vm.devices[0].label, "Kitchen Pi");
+        assert_eq!(vm.achievements_total, axolotchi_core::achievement_count());
+        assert!(vm.mood_sprite_file_id.is_none());
     }
 
     #[test]

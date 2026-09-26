@@ -32,6 +32,12 @@ pub struct ViewSubmission {
 pub enum Interaction {
     BlockAction(BlockAction),
     ViewSubmission(ViewSubmission),
+    /// A user opened (or switched to) the app's Home tab — the cue to
+    /// `views.publish` current state for them. Requires the Slack app to
+    /// subscribe to the `app_home_opened` event.
+    HomeOpened {
+        user_id: String,
+    },
 }
 
 fn str_field(value: &Value, key: &str) -> Option<String> {
@@ -73,6 +79,22 @@ pub fn parse_interaction(payload: &Value) -> Option<Interaction> {
         }
         _ => None,
     }
+}
+
+/// Parses an `events_api` envelope's `payload` object, recognizing
+/// `app_home_opened` (for the Home tab) and ignoring every other event type
+/// (there's nothing else subscribed to yet).
+pub fn parse_event(payload: &Value) -> Option<Interaction> {
+    if payload.get("type")?.as_str()? != "event_callback" {
+        return None;
+    }
+    let event = payload.get("event")?;
+    if event.get("type")?.as_str()? != "app_home_opened" {
+        return None;
+    }
+    Some(Interaction::HomeOpened {
+        user_id: str_field(event, "user")?,
+    })
 }
 
 /// Pulls a single `plain_text_input`/similar element's `value` out of a
@@ -212,6 +234,35 @@ mod tests {
     fn unknown_interaction_type_is_ignored() {
         let payload = json!({ "type": "shortcut" });
         assert_eq!(parse_interaction(&payload), None);
+    }
+
+    #[test]
+    fn parses_app_home_opened_event() {
+        let payload = json!({
+            "type": "event_callback",
+            "event": { "type": "app_home_opened", "user": "U1", "tab": "home" },
+        });
+        assert_eq!(
+            parse_event(&payload),
+            Some(Interaction::HomeOpened {
+                user_id: "U1".into()
+            })
+        );
+    }
+
+    #[test]
+    fn ignores_other_event_types() {
+        let payload = json!({
+            "type": "event_callback",
+            "event": { "type": "message", "user": "U1" },
+        });
+        assert_eq!(parse_event(&payload), None);
+    }
+
+    #[test]
+    fn ignores_non_event_callback_payloads() {
+        let payload = json!({ "type": "url_verification" });
+        assert_eq!(parse_event(&payload), None);
     }
 
     #[test]

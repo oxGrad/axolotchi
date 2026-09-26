@@ -13,5 +13,6 @@ pub use interactions::{
     checkbox_checked, input_value, timepicker_hour, BlockAction, Interaction, ViewSubmission,
 };
 pub use socket_mode::{
-    parse_command, respond, run, views_open, views_push, Config, SlackError, SlashCommandInvocation,
+    parse_command, respond, run, views_open, views_publish, views_push, Config, SlackError,
+    SlashCommandInvocation,
 };

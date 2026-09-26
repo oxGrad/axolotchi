@@ -16,23 +16,31 @@ all of it with mood, XP and evolution stages, an achievements rule table, and
 Netdex flavor text for known device vendors.
 
 `/axo who|feed|stats` reply with real text, and `/axo dex` opens the Netdex
-modal. The Home tab's device overflow menu (Details/Rename/Forget) opens the
-matching modal via `views.open`, the device card's own buttons push a
-follow-up modal via `views.push`, and submitting a modal saves the nickname
-or quiet hours setting to `kv` or deletes the device (Forget). Nicknames and
+modal. Opening the Home tab (`app_home_opened`) publishes it live via
+`views.publish`; from there the device overflow menu (Details/Rename/Forget)
+opens the matching modal via `views.open`, the device card's own buttons
+push a follow-up modal via `views.push`, and submitting a modal saves the
+nickname or quiet hours setting to `kv` or deletes the device (Forget).
+Every device that joins, misses a check-in, or goes `Gone` marks a `Render`
+effect, which a debounced tick (at most once every few seconds) turns into a
+fresh `views.publish` for everyone who's opened Home so far. Nicknames and
 quiet hours live in the `kv` table; mood/XP/achievement/Netdex-discovery
-state is still in-memory only.
+state, and the set of users who've opened Home, are still in-memory only —
+lost on restart, rebuilt as things happen again.
 
-Not done yet: nothing actually publishes the Home tab itself (there's no
-`views.publish` call anywhere, so the overflow menu has nothing to click on
-in practice today), reactions-as-input, and the pinned "live tank" message
-with its render debouncer. See `CLAUDE.md` for the full milestone plan.
+Not done yet: reactions-as-input, and the pinned "live tank" channel message
+(a standing message kept current via `chat.update`, independent of anyone
+opening their Home tab). See `CLAUDE.md` for the full milestone plan.
 
 ## Running locally
 
 1. Create a Slack app with Socket Mode enabled, a bot token (`xoxb-...`),
    an app-level token with `connections:write` (`xapp-...`), and a
-   `/axo` slash command.
+   `/axo` slash command. Also enable the **Home Tab** under App Home, and
+   subscribe to the `app_home_opened` bot event under Event Subscriptions
+   (Socket Mode delivers it, no request URL needed) — without that
+   subscription, `axolotchid` never learns a Home tab was opened and so
+   never publishes it.
 2. Provide the tokens via environment variables (or `/etc/axolotchi/config.toml`,
    see below):
 
@@ -42,8 +50,8 @@ with its render debouncer. See `CLAUDE.md` for the full milestone plan.
    cargo run -p axolotchid
    ```
 
-3. In Slack, run `/axo who` (or `feed`, `stats`, `dex`) — Axo replies with a
-   placeholder message confirming the round trip works.
+3. In Slack, open the app's Home tab to see Axo's mood, stage, XP, and known
+   devices, or run `/axo who`, `feed`, `stats`, or `dex`.
 
 ### Config file
 
