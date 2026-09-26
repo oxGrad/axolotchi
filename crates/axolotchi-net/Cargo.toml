@@ -6,3 +6,18 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+axolotchi-core = { path = "../axolotchi-core" }
+libc = { version = "0.2.189", optional = true }
+thiserror = "2"
+tokio = { version = "1", features = ["rt", "macros", "sync", "time"] }
+tracing = "0.1"
+
+[features]
+default = []
+# Real raw-socket networking (AF_PACKET ARP sweep + passive sniffer). Needs
+# CAP_NET_RAW/root and a live interface, so it's opt-in and excluded from
+# the default build/test/clippy — see src/raw_socket.rs.
+hardware = ["dep:libc"]
+
+[dev-dependencies]
+tokio = { version = "1", features = ["test-util"] }

@@ -59,6 +59,13 @@ version = "0.1.0"
 [[package]]
 name = "axolotchi-net"
 version = "0.1.0"
+dependencies = [
+ "axolotchi-core",
+ "libc",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
 
 [[package]]
 name = "axolotchi-slack"

@@ -17,8 +17,7 @@ pub use devices::{load_devices, upsert_device};
 pub use error::{Result, StoreError};
 pub use oui::{import_oui, lookup_vendor, SEED_OUI_CSV};
 pub use ring::{RawSighting, RingBuffer};
-
-use rusqlite::Connection;
+pub use rusqlite::Connection;
 
 pub fn open(path: &str) -> Result<Connection> {
     let conn = Connection::open(path)?;
