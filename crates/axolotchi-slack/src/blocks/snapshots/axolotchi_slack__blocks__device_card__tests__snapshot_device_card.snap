@@ -1,0 +1,74 @@
+---
+source: crates/axolotchi-slack/src/blocks/device_card.rs
+expression: device_card_modal(&sample())
+---
+{
+  "blocks": [
+    {
+      "fields": [
+        {
+          "text": "*Status:*\n🟢 Present",
+          "type": "mrkdwn"
+        },
+        {
+          "text": "*Last seen:*\njust now",
+          "type": "mrkdwn"
+        },
+        {
+          "text": "*IP:*\n10.0.0.11",
+          "type": "mrkdwn"
+        },
+        {
+          "text": "*Vendor:*\nRaspberry Pi Foundation",
+          "type": "mrkdwn"
+        }
+      ],
+      "type": "section"
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "text": {
+        "text": "_A tiny, tireless workhorse._",
+        "type": "mrkdwn"
+      },
+      "type": "section"
+    },
+    {
+      "elements": [
+        {
+          "action_id": "device_card_rename",
+          "text": {
+            "text": "Rename",
+            "type": "plain_text"
+          },
+          "type": "button",
+          "value": "rename:aa:bb:cc:dd:ee:01"
+        },
+        {
+          "action_id": "device_card_forget",
+          "style": "danger",
+          "text": {
+            "text": "Forget",
+            "type": "plain_text"
+          },
+          "type": "button",
+          "value": "forget:aa:bb:cc:dd:ee:01"
+        }
+      ],
+      "type": "actions"
+    }
+  ],
+  "callback_id": "device_card",
+  "close": {
+    "text": "Close",
+    "type": "plain_text"
+  },
+  "private_metadata": "aa:bb:cc:dd:ee:01",
+  "title": {
+    "text": "Kitchen Pi",
+    "type": "plain_text"
+  },
+  "type": "modal"
+}

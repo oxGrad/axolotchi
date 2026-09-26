@@ -1,0 +1,76 @@
+---
+source: crates/axolotchi-slack/src/blocks/live_tank.rs
+expression: live_tank_message(&sample())
+---
+{
+  "blocks": [
+    {
+      "text": {
+        "text": "Axo the Axolotl",
+        "type": "plain_text"
+      },
+      "type": "header"
+    },
+    {
+      "text": {
+        "text": "*Mood:* Content",
+        "type": "mrkdwn"
+      },
+      "type": "section"
+    },
+    {
+      "text": {
+        "text": "*Stage:* Juvenile\n*XP:* 55",
+        "type": "mrkdwn"
+      },
+      "type": "section"
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "accessory": {
+        "action_id": "device_overflow",
+        "options": [
+          {
+            "text": {
+              "text": "Details",
+              "type": "plain_text"
+            },
+            "value": "details:aa:bb:cc:dd:ee:01"
+          },
+          {
+            "text": {
+              "text": "Rename",
+              "type": "plain_text"
+            },
+            "value": "rename:aa:bb:cc:dd:ee:01"
+          },
+          {
+            "text": {
+              "text": "Forget",
+              "type": "plain_text"
+            },
+            "value": "forget:aa:bb:cc:dd:ee:01"
+          }
+        ],
+        "type": "overflow"
+      },
+      "text": {
+        "text": "*Kitchen Pi*\n🟢 present",
+        "type": "mrkdwn"
+      },
+      "type": "section"
+    },
+    {
+      "elements": [
+        {
+          "text": "🏆 2/4 achievements unlocked",
+          "type": "mrkdwn"
+        }
+      ],
+      "type": "context"
+    }
+  ],
+  "text": "Axo — mood: Content, stage: Juvenile, XP: 55"
+}

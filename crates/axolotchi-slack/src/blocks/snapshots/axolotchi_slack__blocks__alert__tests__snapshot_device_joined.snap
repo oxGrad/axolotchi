@@ -1,0 +1,25 @@
+---
+source: crates/axolotchi-slack/src/blocks/alert.rs
+expression: alert_message(&base())
+---
+{
+  "blocks": [
+    {
+      "text": {
+        "text": "🧐 Kitchen Pi just joined the network.",
+        "type": "mrkdwn"
+      },
+      "type": "section"
+    },
+    {
+      "elements": [
+        {
+          "text": "Axo is watching the network.",
+          "type": "mrkdwn"
+        }
+      ],
+      "type": "context"
+    }
+  ],
+  "text": "Kitchen Pi just joined the network."
+}

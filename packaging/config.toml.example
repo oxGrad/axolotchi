@@ -1,0 +1,14 @@
+# Copied to /etc/axolotchi/config.toml by packaging/install.sh on first
+# install. Fill in the Slack tokens, then `systemctl restart axolotchid`.
+slack_bot_token = "xoxb-..."
+slack_app_token = "xapp-..."
+pet_name = "Axo"
+database_path = "/var/lib/axolotchi/axolotchi.db"
+net_mode = "mock" # or "hardware"
+# home_channel = "C0123456789" # optional: enables the pinned live tank message
+
+# hardware net mode only:
+# interface = "wlan0"
+# our_ip = "192.168.1.42"
+# sweep_network = "192.168.1.0"
+# sweep_prefix_len = 24

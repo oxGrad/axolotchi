@@ -1,0 +1,35 @@
+---
+source: crates/axolotchi-slack/src/blocks/netdex_modal.rs
+expression: netdex_modal(&sample())
+---
+{
+  "blocks": [
+    {
+      "text": {
+        "text": "*Raspberry Pi Foundation*\n_A tiny, tireless workhorse._",
+        "type": "mrkdwn"
+      },
+      "type": "section"
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "text": {
+        "text": "*???*\n_Not yet discovered._",
+        "type": "mrkdwn"
+      },
+      "type": "section"
+    }
+  ],
+  "callback_id": "netdex",
+  "close": {
+    "text": "Close",
+    "type": "plain_text"
+  },
+  "title": {
+    "text": "Netdex",
+    "type": "plain_text"
+  },
+  "type": "modal"
+}

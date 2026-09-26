@@ -1,0 +1,15 @@
+# Small starter set of MAC OUI vendor prefixes, picked for devices likely
+# to show up on the kind of LAN axolotchi watches (the Pi itself, plus
+# common IoT/ESP-based gadgets). Not exhaustive — import the full IEEE OUI
+# registry (https://standards-oui.ieee.org/oui/oui.csv) via `import_oui`
+# for real vendor coverage.
+B8:27:EB,Raspberry Pi Foundation
+DC:A6:32,Raspberry Pi Trading Ltd
+E4:5F:01,Raspberry Pi Trading Ltd
+24:6F:28,Espressif Inc.
+30:AE:A4,Espressif Inc.
+AC:63:BE,Espressif Inc.
+FC:A6:67,Espressif Inc.
+3C:5A:B4,Google Inc.
+F4:F5:D8,Google Inc.
+18:B4:30,Nest Labs Inc.
